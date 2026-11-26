@@ -43,5 +43,5 @@ python sph_mars_flyby_impact.py
 
 ## References
 
-1. J. J. Monaghan, "Smoothed Particle Hydrodynamics," *Annu. Rev. Astron. Astrophys.* **30**, 543–574 (1992): `annurev.aa.30.090192.002551 (1).pdf`
-2. R. M. Canup, "Forming a Moon with an Earth-like Composition via a Giant Impact," *Science* **338**, 1052 (2012): `Week 9/canup2012.pdf`
+1. J. J. Monaghan, "Smoothed Particle Hydrodynamics," *Annu. Rev. Astron. Astrophys.* **30**, 543–574 (1992): https://doi.org/10.1146/annurev.aa.30.090192.002551
+2. R. M. Canup, "Forming a Moon with an Earth-like Composition via a Giant Impact," *Science* **338**, 1052 (2012): https://doi.org/10.1126/science.1226073
