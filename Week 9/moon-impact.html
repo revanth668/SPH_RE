@@ -1,0 +1,1079 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Moon-Forming Giant Impact</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* single visual world: deep space. Layout: canvas left, instrument panel right */
+  --space: #070912;
+  --panel: #0f1322;
+  --line: #222a40;
+  --ink: #e6e9f2;
+  --muted: #8a93ad;
+  --earth: #5aa9e6;
+  --theia: #f08a4b;
+  --accent: #f3d27a;
+  --display: "Fraunces", Georgia, serif;
+  --body: "IBM Plex Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--space); color: var(--ink); font: 14px/1.5 var(--body); }
+.app { display: grid; grid-template-columns: 1fr 330px; height: 100%; }
+.stage { position: relative; min-height: 420px; overflow: hidden; }
+canvas#view { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; }
+.hud { position: absolute; left: 18px; top: 14px; right: 18px; pointer-events: none; display: flex; flex-direction: column; gap: 2px; }
+.hud .clock { font: 500 28px/1.1 var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -0.5px; }
+.hud .stagename { font: 600 17px/1.3 var(--display); color: var(--accent); text-wrap: balance; }
+.hud .stagedesc { color: var(--muted); max-width: 52ch; font-size: 13px; }
+.legend { position: absolute; left: 18px; bottom: 14px; display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--muted); pointer-events: none; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.colorbar { width: 140px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, #1b2a6b, #2f8fd6, #3fd0a0, #f5e15a, #ff8a2a, #e8202a); }
+.overlay { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(7,9,18,.55); font: 500 15px var(--mono); color: var(--ink); }
+.overlay[hidden] { display: none; }
+aside { background: var(--panel); border-left: 1px solid var(--line); overflow-y: auto; padding: 18px 18px 24px; display: flex; flex-direction: column; gap: 18px; }
+h1 { font: 650 22px/1.15 var(--display); margin: 0; text-wrap: balance; }
+.sub { color: var(--muted); margin: 4px 0 0; font-size: 13px; }
+h2 { font: 600 11px/1 var(--body); text-transform: uppercase; letter-spacing: .12em; color: var(--muted); margin: 0 0 10px; }
+.readout { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; font-size: 13px; }
+.readout dt { color: var(--muted); }
+.readout dd { margin: 0; font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; }
+.moonbox { border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 6px; padding: 10px 12px; display: grid; gap: 2px; }
+.moonbox .big { font: 500 22px var(--mono); font-variant-numeric: tabular-nums; }
+.moonbox .lbl { color: var(--muted); font-size: 12px; }
+.ctl { display: grid; gap: 12px; }
+.field { display: grid; gap: 4px; }
+.field label { display: flex; justify-content: space-between; font-size: 13px; }
+.field label output { font-family: var(--mono); color: var(--accent); }
+.field .hint { color: var(--muted); font-size: 11.5px; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+select { width: 100%; background: var(--space); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 7px 8px; font: inherit; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+button { font: 600 13px var(--body); border-radius: 6px; padding: 8px 12px; border: 1px solid var(--line); background: #182036; color: var(--ink); cursor: pointer; }
+button.primary { background: var(--accent); color: #1a1406; border-color: var(--accent); }
+button:hover { filter: brightness(1.12); }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; background: transparent; color: var(--muted); padding: 6px 10px; }
+.seg button[aria-pressed=true] { background: #1d2742; color: var(--ink); }
+.about { color: var(--muted); font-size: 12.5px; display: grid; gap: 8px; }
+.about p { margin: 0; }
+.about b { color: var(--ink); font-weight: 500; }
+@media (max-width: 820px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: 62vh auto; height: auto; }
+  aside { border-left: 0; border-top: 1px solid var(--line); }
+  .hud .clock { font-size: 22px; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="stage" id="stage">
+    <canvas id="view" aria-label="Simulation view"></canvas>
+    <div class="hud">
+      <div class="clock" id="clock">—</div>
+      <div class="stagename" id="stagename">Setting up</div>
+      <div class="stagedesc" id="stagedesc"></div>
+    </div>
+    <div class="legend" id="legend"></div>
+    <div class="overlay" id="overlay">Settling the two planets under their own gravity…</div>
+  </div>
+
+  <aside>
+    <div>
+      <h1>Forming the Moon with a giant impact</h1>
+      <p class="sub">2D toy model after Canup (2012), <i>Science</i> 338, 1052: two planets collide, the wreckage settles into a planet and a debris disk, and the disk gathers into a Moon.</p>
+    </div>
+
+    <section>
+      <h2>Result</h2>
+      <div class="moonbox">
+        <span class="lbl">Largest moon</span>
+        <span class="big" id="moonMass">—</span>
+        <span class="lbl" id="moonWhere">forms after the impact phase</span>
+      </div>
+    </section>
+
+    <section>
+      <h2>System</h2>
+      <dl class="readout">
+        <dt>Planet mass</dt><dd id="rPlanet">—</dd>
+        <dt>Still in orbit</dt><dd id="rDisk">—</dd>
+        <dt>Escaped</dt><dd id="rEsc">—</dd>
+        <dt>Particles</dt><dd id="rN">—</dd>
+      </dl>
+    </section>
+
+    <section class="ctl">
+      <h2>Impact setup</h2>
+      <div class="field">
+        <label for="preset">Scenario</label>
+        <select id="preset">
+          <option value="canup">Canup 2012: two near-equal planets</option>
+          <option value="canonical">Canonical: Mars-sized impactor</option>
+          <option value="custom">Custom</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="gamma">Impactor share of total mass <output id="gammaOut"></output></label>
+        <input type="range" id="gamma" min="0.08" max="0.5" step="0.01">
+        <span class="hint">Paper: 0.40–0.45. Canonical model: ~0.11</span>
+      </div>
+      <div class="field">
+        <label for="b">Impact parameter b = sin(angle) <output id="bOut"></output></label>
+        <input type="range" id="b" min="0.2" max="0.85" step="0.01">
+        <span class="hint">0 is head-on, 1 is grazing. Paper: 0.35–0.7</span>
+      </div>
+      <div class="field">
+        <label for="vr">Impact speed / escape speed <output id="vrOut"></output></label>
+        <input type="range" id="vr" min="1.0" max="1.6" step="0.01">
+        <span class="hint">Paper: 1.0–1.6</span>
+      </div>
+      <div class="field">
+        <label for="res">Resolution</label>
+        <select id="res">
+          <option value="800">800 particles (fast)</option>
+          <option value="1200" selected>1,200 particles</option>
+          <option value="2000">2,000 particles (detailed, slower)</option>
+        </select>
+      </div>
+      <div class="row">
+        <button class="primary" id="run">Run impact</button>
+        <button id="pause">Pause</button>
+      </div>
+      <div class="field">
+        <label for="speed">Playback speed <output id="speedOut"></output></label>
+        <input type="range" id="speed" min="1" max="5" step="1" value="4">
+      </div>
+      <div class="field">
+        <label>Color particles by</label>
+        <div class="seg" role="group" aria-label="Color mode">
+          <button id="cOrigin" aria-pressed="true">Origin</button>
+          <button id="cTemp" aria-pressed="false">Temperature</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="about">
+      <h2>How it works</h2>
+      <p><b>Day 1, impact.</b> Each planet is a set of particles with an iron core and a rock mantle. Gravity uses a Barnes–Hut tree; pressure, shocks and heating use smoothed particle hydrodynamics (SPH), the method in the paper, with a simplified equation of state.</p>
+      <p><b>After day 1, disk.</b> As in the paper, every particle is sorted by its orbit: part of the planet, bound in the disk, or escaping. The planet becomes one body. Inside the Roche limit (dashed circle) tides keep debris from clumping and it drains onto the planet. Outside it, debris that is gravitationally bound sticks together into moonlets, then one Moon.</p>
+      <p><b>Limits.</b> This is a flat 2D toy with 3D gravity, about 100× fewer particles than the paper, and simple stand-ins for disk gas and viscosity. Expect the right sequence of events, not the paper's numbers. Results change from run to run.</p>
+      <p>Units: Earth mass M⊕, Earth radius R⊕, lunar mass M☾ = 0.0123 M⊕. Drag to pan, scroll to zoom, double-click to recenter.</p>
+    </section>
+  </aside>
+</div>
+
+<script>
+// ============================================================================
+//  Giant-impact Moon formation — 2D toy simulation core
+//  Units: G = 1, M_earth = 1, R_earth = 1  ->  1 time unit ≈ 805 s (13.4 min)
+//                                            1 velocity unit ≈ 7.91 km/s
+//
+//  Phase 1 (impact, ~1 day): every particle is a parcel of rock or iron.
+//     - self-gravity via a Barnes–Hut quadtree (O(N log N))
+//     - smoothed particle hydrodynamics (SPH), the method Canup (2012) used,
+//       with a simple compressible EOS, shock heating and slow cooling
+//  Phase 2 (accretion, weeks–months): the merged planet is replaced by one
+//     body; the remaining debris disk orbits it. Debris outside the Roche
+//     limit sticks together when gravitationally bound -> moonlets -> Moon.
+// ============================================================================
+(function (root) {
+  'use strict';
+  const T_UNIT_S = 805.5;          // seconds per time unit
+  const V_UNIT_KMS = 7.91;         // km/s per velocity unit
+  const M_LUNAR = 0.0123;          // lunar mass in Earth masses
+
+  // particle kinds
+  const TGT_MANTLE = 0, TGT_CORE = 1, IMP_MANTLE = 2, IMP_CORE = 3, MOONLET = 4;
+
+  function Sim(opts) {
+    this.o = Object.assign({
+      N: 2000,          // particle count for 1 Earth mass of material
+      gamma: 0.45,      // impactor mass / total mass   (Canup 2012: 0.40–0.45)
+      b: 0.55,          // impact parameter sin(angle)   (Canup 2012: 0.35–0.7)
+      vratio: 1.1,      // v_imp / v_esc                 (Canup 2012: 1.0–1.6)
+      dt: 0.005,        // max timestep, impact phase (adaptive CFL below this)
+      dt2: 0.01,        // timestep, accretion phase
+      tSwitch: 110,     // switch to accretion phase (~1 day)
+      gth: 0.3,         // thermal pressure coefficient (Grüneisen-like)
+      tcool: 15,        // radiative cooling time of hot material (0 = off)
+      tCirc: 20,        // disk orbit circularisation time (phase 2)
+      tVisc: 400,       // inner-disk inflow time inside the Roche limit (phase 2)
+      hill: 3.5,        // clumping range in Hill radii (phase 2)
+      seed: 1,
+    }, opts || {});
+    this.t = 0;
+    this.phase = 0;     // 0 = setup, 1 = impact, 2 = accretion
+    this.log = [];
+    this._rng = mulberry32(this.o.seed);
+    this.init();
+  }
+
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  // ---------------------------------------------------------------- storage
+  Sim.prototype.alloc = function (cap) {
+    this.cap = cap;
+    const F = Float64Array;
+    this.x = new F(cap); this.y = new F(cap);
+    this.vx = new F(cap); this.vy = new F(cap);
+    this.ax = new F(cap); this.ay = new F(cap);
+    this.m = new F(cap); this.r = new F(cap);
+    this.u = new F(cap);            // specific internal energy (heat)
+    this.ftar = new F(cap);         // mass fraction derived from the target
+    this.kind = new Uint8Array(cap);
+    this.n = 0;
+  };
+
+  Sim.prototype.add = function (x, y, vx, vy, m, r, kind, ftar) {
+    const i = this.n++;
+    this.x[i] = x; this.y[i] = y; this.vx[i] = vx; this.vy[i] = vy;
+    this.m[i] = m; this.r[i] = r; this.kind[i] = kind; this.u[i] = 0;
+    this.ftar[i] = ftar;
+    return i;
+  };
+
+  Sim.prototype.remove = function (i) {   // swap-with-last
+    const j = --this.n;
+    if (i === j) return;
+    for (const a of [this.x, this.y, this.vx, this.vy, this.ax, this.ay, this.m, this.r, this.u, this.ftar, this.kind, this.rho0, this.gax, this.gay, this.du, this.rho]) if (a) a[i] = a[j];
+  };
+
+  // ---------------------------------------------------------------- set-up
+  Sim.prototype.init = function () {
+    const o = this.o;
+    this.alloc(Math.ceil(o.N * 1.25) + 50);
+    // hex lattice spacing chosen so 1 Earth mass of particles fills radius 1
+    const s = Math.sqrt(Math.PI / (0.866 * o.N));
+    this.s = s; this.r0 = s / 2;
+    this.m0 = 1 / (o.N * 1.15);            // mantle particle mass (core = 1.6x)
+    this.eps = 0.6 * s;                    // gravitational softening
+    const Mt = 1 - o.gamma, Mi = o.gamma;
+    // build both bodies far apart and let them settle under their own gravity
+    this.buildBody(-15, 0, Mt, TGT_MANTLE, TGT_CORE, 1);
+    this.nT = this.n;
+    this.buildBody(15, 0, Mi, IMP_MANTLE, IMP_CORE, 0);
+    this.relax(500);
+    this.place();
+    this.phase = 1;
+  };
+
+  Sim.prototype.buildBody = function (cx, cy, M, km, kc, ftar) {
+    const R = Math.sqrt(M), s = this.s, rng = this._rng;
+    for (let row = -Math.ceil(R / (s * 0.866)) - 1; row <= Math.ceil(R / (s * 0.866)) + 1; row++) {
+      const yy = row * s * 0.866, off = (row & 1) ? s / 2 : 0;
+      for (let col = -Math.ceil(R / s) - 1; col <= Math.ceil(R / s) + 1; col++) {
+        const xx = col * s + off;
+        const rr = Math.hypot(xx, yy);
+        if (rr > R) continue;
+        const core = rr < 0.5 * R;
+        const jx = (rng() - 0.5) * 0.15 * s, jy = (rng() - 0.5) * 0.15 * s;
+        this.add(cx + xx + jx, cy + yy + jy, 0, 0, this.m0 * (core ? 1.6 : 1), this.r0, core ? kc : km, ftar);
+      }
+    }
+  };
+
+  Sim.prototype.relax = function (steps) {
+    this.sphSetup();
+    // reference density = lattice density (core particles are 1.6x heavier)
+    const lat = this.m0 / (0.866 * this.s * this.s);
+    for (let i = 0; i < this.n; i++) this.rho0[i] = lat * (this.kind[i] === TGT_CORE || this.kind[i] === IMP_CORE ? 1.6 : 1);
+    for (let k = 0; k < steps; k++) {
+      this.stepImpact(this.o.dt);
+      const damp = k < steps * 0.8 ? 0.97 : 0.995;
+      for (let i = 0; i < this.n; i++) { this.vx[i] *= damp; this.vy[i] *= damp; this.u[i] = 0; }
+    }
+  };
+
+  Sim.prototype.bodyStats = function (from, to) {
+    let M = 0, X = 0, Y = 0, VX = 0, VY = 0;
+    for (let i = from; i < to; i++) { const m = this.m[i]; M += m; X += m * this.x[i]; Y += m * this.y[i]; VX += m * this.vx[i]; VY += m * this.vy[i]; }
+    X /= M; Y /= M; VX /= M; VY /= M;
+    let R = 0;
+    for (let i = from; i < to; i++) R = Math.max(R, Math.hypot(this.x[i] - X, this.y[i] - Y));
+    return { M, X, Y, VX, VY, R: R + this.r0 };
+  };
+
+  // put the two bodies on a hyperbolic/parabolic approach that hits with the
+  // requested impact parameter b and speed v_imp = vratio * v_esc
+  Sim.prototype.place = function () {
+    const o = this.o;
+    const T = this.bodyStats(0, this.nT), I = this.bodyStats(this.nT, this.n);
+    const M = T.M + I.M, dc = T.R + I.R;
+    const vesc = Math.sqrt(2 * M / dc), vimp = o.vratio * vesc;
+    this.vesc = vesc; this.vimp = vimp;
+    // relative state at contact (impactor relative to target)
+    let rx = dc * Math.sqrt(1 - o.b * o.b), ry = dc * o.b, vx = -vimp, vy = 0;
+    // integrate the two-body problem backwards until well separated
+    const h = -0.002;
+    let tb = 0;
+    while (Math.hypot(rx, ry) < 1.6 * dc && tb > -20) {
+      // RK2 midpoint
+      const a1 = acc(rx, ry);
+      const mx = rx + 0.5 * h * vx, my = ry + 0.5 * h * vy;
+      const mvx = vx + 0.5 * h * a1[0], mvy = vy + 0.5 * h * a1[1];
+      const a2 = acc(mx, my);
+      rx += h * mvx; ry += h * mvy; vx += h * a2[0]; vy += h * a2[1];
+      tb += h;
+    }
+    function acc(x, y) { const d = Math.hypot(x, y); const f = -M / (d * d * d); return [f * x, f * y]; }
+    const ft = -I.M / M, fi = T.M / M;
+    for (let i = 0; i < this.n; i++) {
+      const isT = i < this.nT, S = isT ? T : I, f = isT ? ft : fi;
+      this.x[i] += -S.X + f * rx; this.y[i] += -S.Y + f * ry;
+      this.vx[i] = f * vx; this.vy[i] = f * vy;
+    }
+    this.t = tb; // negative: time until contact
+    this.log.push(`contact in ${(-tb * T_UNIT_S / 60).toFixed(0)} min, v_imp = ${(vimp * V_UNIT_KMS).toFixed(1)} km/s (toy units)`);
+  };
+
+  // ---------------------------------------------------------------- gravity
+  Sim.prototype.buildTree = function () {
+    const n = this.n, maxNodes = 16 * n + 64;
+    if (!this.tMass || this.tMass.length < maxNodes) {
+      this.tMass = new Float64Array(maxNodes); this.tMx = new Float64Array(maxNodes); this.tMy = new Float64Array(maxNodes);
+      this.tCx = new Float64Array(maxNodes); this.tCy = new Float64Array(maxNodes); this.tH = new Float64Array(maxNodes);
+      this.tBody = new Int32Array(maxNodes); this.tChild = new Int32Array(maxNodes);
+      this.stack = new Int32Array(maxNodes);
+    }
+    let minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
+    for (let i = 0; i < n; i++) {
+      const x = this.x[i], y = this.y[i];
+      if (x < minx) minx = x; if (x > maxx) maxx = x; if (y < miny) miny = y; if (y > maxy) maxy = y;
+    }
+    const tM = this.tMass, tMx = this.tMx, tMy = this.tMy, tCx = this.tCx, tCy = this.tCy, tH = this.tH, tB = this.tBody, tC = this.tChild;
+    let nn = 1;
+    const minH = 0.05 * this.s;
+    tCx[0] = (minx + maxx) / 2; tCy[0] = (miny + maxy) / 2; tH[0] = Math.max(maxx - minx, maxy - miny) / 2 + 1e-6;
+    tM[0] = tMx[0] = tMy[0] = 0; tB[0] = -1; tC[0] = -1;
+    const X = this.x, Y = this.y, Ms = this.m;
+    for (let b = 0; b < n; b++) {
+      const bx = X[b], by = Y[b], bm = Ms[b];
+      let node = 0;
+      for (;;) {
+        tM[node] += bm; tMx[node] += bm * bx; tMy[node] += bm * by;
+        if (tC[node] < 0) {                     // leaf
+          if (tB[node] === -1) { tB[node] = b; break; }
+          if (tH[node] < minH || nn + 4 > maxNodes) break; // near-coincident: bucket
+          // split: move existing body into a child
+          const c = tB[node]; tB[node] = -2;
+          const first = nn; nn += 4; tC[node] = first;
+          const h2 = tH[node] / 2;
+          for (let q = 0; q < 4; q++) {
+            const k = first + q;
+            tCx[k] = tCx[node] + ((q & 1) ? h2 : -h2); tCy[k] = tCy[node] + ((q & 2) ? h2 : -h2); tH[k] = h2;
+            tM[k] = tMx[k] = tMy[k] = 0; tB[k] = -1; tC[k] = -1;
+          }
+          const qc = (X[c] > tCx[node] ? 1 : 0) | (Y[c] > tCy[node] ? 2 : 0);
+          const kc = first + qc, cm = Ms[c];
+          tM[kc] = cm; tMx[kc] = cm * X[c]; tMy[kc] = cm * Y[c]; tB[kc] = c;
+        }
+        const q = (bx > tCx[node] ? 1 : 0) | (by > tCy[node] ? 2 : 0);
+        node = tC[node] + q;
+      }
+    }
+    this.nNodes = nn;
+  };
+
+  Sim.prototype.gravityTree = function () {
+    const n = this.n, theta2 = 0.7 * 0.7, eps2 = this.eps * this.eps;
+    const tM = this.tMass, tMx = this.tMx, tMy = this.tMy, tH = this.tH, tB = this.tBody, tC = this.tChild, st = this.stack;
+    for (let i = 0; i < n; i++) {
+      const xi = this.x[i], yi = this.y[i];
+      let ax = 0, ay = 0, sp = 0;
+      st[sp++] = 0;
+      while (sp > 0) {
+        const nd = st[--sp];
+        const m = tM[nd]; if (m === 0) continue;
+        if (tB[nd] === i) continue;
+        const cx = tMx[nd] / m, cy = tMy[nd] / m;
+        const dx = cx - xi, dy = cy - yi, d2 = dx * dx + dy * dy;
+        const w = 2 * tH[nd];
+        if (tC[nd] < 0 || w * w < theta2 * d2) {
+          const r2 = d2 + eps2, inv = m / (r2 * Math.sqrt(r2));
+          ax += dx * inv; ay += dy * inv;
+        } else {
+          const c = tC[nd];
+          st[sp++] = c; st[sp++] = c + 1; st[sp++] = c + 2; st[sp++] = c + 3;
+        }
+      }
+      this.ax[i] = ax; this.ay[i] = ay;
+    }
+  };
+
+  // ------------------------------------------------- phase-2 contact model
+  // Debris clumps in the disk collide as soft spheres (spring + dashpot).
+  const OMEGA = 60, ZETA = 0.35;
+  function contact(S, i, j) {
+    const dx = S.x[j] - S.x[i], dy = S.y[j] - S.y[i];
+    const rc = S.r[i] + S.r[j];
+    const d2 = dx * dx + dy * dy;
+    if (d2 >= rc * rc || d2 === 0) return;
+    const d = Math.sqrt(d2), nx = dx / d, ny = dy / d;
+    const mi = S.m[i], mj = S.m[j], mu = mi * mj / (mi + mj);
+    const k = mu * OMEGA * OMEGA, c = 2 * ZETA * mu * OMEGA;
+    const vn = (S.vx[j] - S.vx[i]) * nx + (S.vy[j] - S.vy[i]) * ny;
+    let f = k * (rc - d) - c * vn;
+    if (f < 0) f = 0;
+    S.ax[i] -= f * nx / mi; S.ay[i] -= f * ny / mi;
+    S.ax[j] += f * nx / mj; S.ay[j] += f * ny / mj;
+  }
+
+  // ------------------------------------------------- phase-1 SPH hydrodynamics
+  // 2D cubic-spline kernel, summation density, simple "stiffened" EOS:
+  //    P = max(0, c0^2 (rho - rho0)) + GAMMA_TH * rho * u
+  // (cold compression term + thermal term, so shock-heated rock puffs up like
+  //  vapour), Monaghan artificial viscosity, and an internal-energy equation.
+  const C0 = 1.2, AV_A = 1.0, AV_B = 2.0, HFAC = 1.2;
+  let GAMMA_TH = 0.6;
+
+  Sim.prototype.sphSetup = function () {
+    GAMMA_TH = this.o.gth;
+    this.h = HFAC * this.s;
+    const h = this.h;
+    this.kSig = 10 / (7 * Math.PI * h * h);
+    if (!this.rho || this.rho.length < this.cap) {
+      this.rho = new Float64Array(this.cap); this.P = new Float64Array(this.cap); this.cs = new Float64Array(this.cap);
+      this.du = new Float64Array(this.cap); this.gax = new Float64Array(this.cap); this.gay = new Float64Array(this.cap);
+      this.rho0 = new Float64Array(this.cap);
+    }
+  };
+  Sim.prototype.W = function (r) {
+    const q = r / this.h;
+    if (q < 1) return this.kSig * (1 - 1.5 * q * q + 0.75 * q * q * q);
+    if (q < 2) { const t = 2 - q; return this.kSig * 0.25 * t * t * t; }
+    return 0;
+  };
+  Sim.prototype.dW = function (r) {       // dW/dr
+    const q = r / this.h, f = this.kSig / this.h;
+    if (q < 2 / 3) return -f;               // Thomas–Couchman: no pairing
+    if (q < 1) return f * (-3 * q + 2.25 * q * q);
+    if (q < 2) { const t = 2 - q; return -0.75 * f * t * t; }
+    return 0;
+  };
+
+  Sim.prototype.buildGrid = function () {
+    const n = this.n, cell = 2 * this.h;
+    let size = 1; while (size < 2 * n) size <<= 1;
+    const mask = size - 1;
+    if (!this.gHead || this.gHead.length < size) this.gHead = new Int32Array(size);
+    if (!this.gNext || this.gNext.length < this.cap) { this.gNext = new Int32Array(this.cap); this.gCx = new Int32Array(this.cap); this.gCy = new Int32Array(this.cap); }
+    const head = this.gHead, next = this.gNext, gx = this.gCx, gy = this.gCy;
+    head.fill(-1, 0, size);
+    this._hash = (a, b) => ((Math.imul(a, 73856093) ^ Math.imul(b, 19349663)) >>> 0) & mask;
+    for (let i = 0; i < n; i++) {
+      const cx = Math.floor(this.x[i] / cell), cy = Math.floor(this.y[i] / cell);
+      gx[i] = cx; gy[i] = cy;
+      const hh = this._hash(cx, cy); next[i] = head[hh]; head[hh] = i;
+    }
+  };
+  // call fn(i, j) once for every pair i<j that shares neighbouring cells
+  Sim.prototype.forPairs = function (fn) {
+    const n = this.n, head = this.gHead, next = this.gNext, gx = this.gCx, gy = this.gCy, hash = this._hash;
+    const seen = new Int32Array(9);
+    for (let i = 0; i < n; i++) {
+      let ns = 0;
+      for (let ox = -1; ox <= 1; ox++) for (let oy = -1; oy <= 1; oy++) {
+        const hh = hash(gx[i] + ox, gy[i] + oy);
+        let dup = false; for (let q = 0; q < ns; q++) if (seen[q] === hh) { dup = true; break; }
+        if (dup) continue; seen[ns++] = hh;
+        for (let j = head[hh]; j !== -1; j = next[j]) if (j > i) fn(i, j);
+      }
+    }
+  };
+
+  Sim.prototype.sphForces = function () {
+    const n = this.n, h = this.h, h2x4 = 4 * h * h, ih = 1 / h, sig = this.kSig, fsig = sig * ih;
+    const X = this.x, Y = this.y, VX = this.vx, VY = this.vy, M = this.m, U = this.u;
+    const rho = this.rho, P = this.P, cs = this.cs, AX = this.ax, AY = this.ay, DU = this.du, R0 = this.rho0;
+    this.buildGrid();
+    // 1) neighbour pairs + density
+    if (!this.pI || this.pI.length < n * 40) {
+      this.pI = new Int32Array(n * 40); this.pJ = new Int32Array(n * 40);
+      this.pDx = new Float64Array(n * 40); this.pDy = new Float64Array(n * 40); this.pR = new Float64Array(n * 40);
+    }
+    let np = 0;
+    const pI = this.pI, pJ = this.pJ, pDx = this.pDx, pDy = this.pDy, pR = this.pR, cap = pI.length;
+    const head = this.gHead, next = this.gNext, gx = this.gCx, gy = this.gCy, hash = this._hash;
+    const seen = new Int32Array(9);
+    for (let i = 0; i < n; i++) rho[i] = M[i] * sig;
+    for (let i = 0; i < n; i++) {
+      let ns = 0;
+      const xi = X[i], yi = Y[i];
+      for (let ox = -1; ox <= 1; ox++) for (let oy = -1; oy <= 1; oy++) {
+        const hh = hash(gx[i] + ox, gy[i] + oy);
+        let dup = false; for (let q = 0; q < ns; q++) if (seen[q] === hh) { dup = true; break; }
+        if (dup) continue; seen[ns++] = hh;
+        for (let j = head[hh]; j !== -1; j = next[j]) {
+          if (j <= i) continue;
+          const dx = xi - X[j], dy = yi - Y[j], r2 = dx * dx + dy * dy;
+          if (r2 >= h2x4 || r2 === 0) continue;
+          const r = Math.sqrt(r2), q = r * ih;
+          let w;
+          if (q < 1) w = sig * (1 - 1.5 * q * q + 0.75 * q * q * q); else { const t = 2 - q; w = sig * 0.25 * t * t * t; }
+          rho[i] += M[j] * w; rho[j] += M[i] * w;
+          if (np < cap) { pI[np] = i; pJ[np] = j; pDx[np] = dx; pDy[np] = dy; pR[np] = r; np++; }
+        }
+      }
+    }
+    // 2) equation of state
+    for (let i = 0; i < n; i++) {
+      const cold = C0 * C0 * (rho[i] - R0[i]);
+      P[i] = (cold > 0 ? cold : 0) + GAMMA_TH * rho[i] * U[i];
+      cs[i] = Math.sqrt(C0 * C0 + GAMMA_TH * (GAMMA_TH + 1) * U[i]);
+      DU[i] = 0;
+    }
+    // 3) pressure + artificial viscosity forces, heating
+    let vsigMax = 1e-9;
+    const eta2 = 0.01 * h * h;
+    for (let p = 0; p < np; p++) {
+      const i = pI[p], j = pJ[p], dx = pDx[p], dy = pDy[p], r = pR[p], q = r * ih;
+      let dWdr;
+      if (q < 2 / 3) dWdr = -fsig;                      // Thomas–Couchman: no pairing
+      else if (q < 1) dWdr = fsig * (-3 * q + 2.25 * q * q);
+      else { const t = 2 - q; dWdr = -0.75 * fsig * t * t; }
+      const dw = dWdr / r;
+      const dvx = VX[i] - VX[j], dvy = VY[i] - VY[j], vr = dvx * dx + dvy * dy;
+      let pi = 0, vs = cs[i] + cs[j];
+      if (vr < 0) {
+        const mu = h * vr / (r * r + eta2);
+        pi = (-AV_A * 0.5 * vs * mu + AV_B * mu * mu) / (0.5 * (rho[i] + rho[j]));
+        vs -= 3 * vr / r;
+      }
+      if (vs > vsigMax) vsigMax = vs;
+      const pij = P[i] / (rho[i] * rho[i]) + P[j] / (rho[j] * rho[j]) + pi;
+      const fx = pij * dw * dx, fy = pij * dw * dy;
+      AX[i] -= M[j] * fx; AY[i] -= M[j] * fy;
+      AX[j] += M[i] * fx; AY[j] += M[i] * fy;
+      const e = 0.5 * pij * dw * vr;
+      DU[i] += M[j] * e; DU[j] += M[i] * e;
+    }
+    this.vsigMax = vsigMax;
+  };
+
+  // ---------------------------------------------------------------- phase 1
+  Sim.prototype.forcesImpact = function () {
+    const n = this.n;
+    if (!this._gravAge || this._gravAge >= 3 || this._gravN !== n) {   // gravity every 3rd step
+      this.buildTree(); this.gravityTree();
+      for (let i = 0; i < n; i++) { this.gax[i] = this.ax[i]; this.gay[i] = this.ay[i]; }
+      this._gravAge = 0; this._gravN = n;
+    }
+    this._gravAge++;
+    for (let i = 0; i < n; i++) { this.ax[i] = this.gax[i]; this.ay[i] = this.gay[i]; }
+    this.sphForces();
+  };
+
+  Sim.prototype.stepImpact = function (dtMax) {
+    if (!this.h) this.sphSetup();
+    if (!this._haveAcc) { this.forcesImpact(); this._haveAcc = true; }
+    const dt = Math.min(dtMax, 0.3 * this.h / this.vsigMax);
+    this._dt = dt;
+    const n = this.n;
+    for (let i = 0; i < n; i++) {
+      this.vx[i] += 0.5 * dt * this.ax[i]; this.vy[i] += 0.5 * dt * this.ay[i];
+      this.u[i] += 0.5 * dt * this.du[i]; if (this.u[i] < 0) this.u[i] = 0;
+      this.x[i] += dt * this.vx[i]; this.y[i] += dt * this.vy[i];
+    }
+    this.forcesImpact();
+    for (let i = 0; i < n; i++) {
+      this.vx[i] += 0.5 * dt * this.ax[i]; this.vy[i] += 0.5 * dt * this.ay[i];
+      this.u[i] += 0.5 * dt * this.du[i]; if (this.u[i] < 0) this.u[i] = 0;
+      if (this.o.tcool > 0) this.u[i] *= 1 - dt / this.o.tcool;
+    }
+    this.t += dt;
+  };
+
+  // ------------------------------------------------- phase 1 -> 2 transition
+  // Like Canup's iterative procedure: estimate the planet's mass and radius,
+  // then classify each particle by its orbit around the planet:
+  //   unbound -> escapes;  bound with periapsis < R_planet -> planet;
+  //   bound with periapsis >= R_planet -> disk.
+  Sim.prototype.toAccretion = function () {
+    const n = this.n;
+    let M = 0, X = 0, Y = 0, VX = 0, VY = 0;
+    for (let i = 0; i < n; i++) if (this.kind[i] === TGT_CORE || this.kind[i] === IMP_CORE) { const m = this.m[i]; M += m; X += m * this.x[i]; Y += m * this.y[i]; VX += m * this.vx[i]; VY += m * this.vy[i]; }
+    X /= M; Y /= M; VX /= M; VY /= M;
+    // radius: area occupied by dense (condensed) material near the centre
+    let A = 0;
+    for (let i = 0; i < n; i++) if (this.rho[i] > 0.6 * this.rho0[i] && Math.hypot(this.x[i] - X, this.y[i] - Y) < 2.5) A += this.m[i] / this.rho[i];
+    const Rp = Math.sqrt(A / Math.PI);
+    const cls = new Uint8Array(n);   // 0 planet, 1 disk, 2 escape
+    let Mp = 0; for (let i = 0; i < n; i++) Mp += this.m[i];
+    for (let it = 0; it < 4; it++) {
+      let Mnew = 0, Xn = 0, Yn = 0, VXn = 0, VYn = 0;
+      for (let i = 0; i < n; i++) {
+        const dx = this.x[i] - X, dy = this.y[i] - Y, dvx = this.vx[i] - VX, dvy = this.vy[i] - VY;
+        const r = Math.hypot(dx, dy), v2 = dvx * dvx + dvy * dvy;
+        const E = 0.5 * v2 - Mp / r;
+        if (r < Rp) cls[i] = 0;
+        else if (E >= 0) cls[i] = 2;
+        else {
+          const L = dx * dvy - dy * dvx, a = -Mp / (2 * E), e = Math.sqrt(Math.max(0, 1 + 2 * E * L * L / (Mp * Mp)));
+          cls[i] = a * (1 - e) < Rp ? 0 : 1;
+        }
+        if (cls[i] === 0) { const m = this.m[i]; Mnew += m; Xn += m * this.x[i]; Yn += m * this.y[i]; VXn += m * this.vx[i]; VYn += m * this.vy[i]; }
+      }
+      Mp = Mnew; X = Xn / Mnew; Y = Yn / Mnew; VX = VXn / Mnew; VY = VYn / Mnew;
+    }
+    let Ft = 0, mm = 0, mf = 0;
+    for (let i = 0; i < n; i++) if (cls[i] === 0) {
+      Ft += this.m[i] * this.ftar[i];
+      if (this.kind[i] === TGT_MANTLE || this.kind[i] === IMP_MANTLE) { mm += this.m[i]; mf += this.m[i] * this.ftar[i]; }
+    }
+    const old = {}; for (const k of ['x', 'y', 'vx', 'vy', 'm', 'r', 'u', 'ftar', 'kind']) old[k] = this[k].slice(0, n);
+    this.n = 0;
+    this.add(X, Y, VX, VY, Mp, Rp, 255, Ft / Mp);
+    this.planet = { R: Rp, roche: 2.9 * Rp, mantleFt: mf / mm, M: Mp };
+    let nd = 0, ne = 0, ftd = 0, md = 0;
+    for (let i = 0; i < n; i++) {
+      if (cls[i] === 2) { ne++; continue; }
+      if (cls[i] !== 1) continue;
+      this.add(old.x[i], old.y[i], old.vx[i], old.vy[i], old.m[i], old.r[i], old.kind[i], old.ftar[i]);
+      this.u[this.n - 1] = old.u[i];
+      nd++;
+      if (old.kind[i] === TGT_MANTLE || old.kind[i] === IMP_MANTLE) { md += old.m[i]; ftd += old.m[i] * old.ftar[i]; }
+    }
+    this.phase = 2;
+    this.diskInfo = { n: nd, M: this.diskMass(), mantleFt: md ? ftd / md : NaN, escaped: ne };
+    this._haveAcc = false;
+    this.log.push(`t=${this.hours().toFixed(1)} h: planet ${Mp.toFixed(3)} M⊕ (R=${Rp.toFixed(2)}), disk ${nd} particles = ${(this.diskInfo.M / M_LUNAR).toFixed(2)} lunar masses, ${ne} escaped`);
+  };
+
+  // ---------------------------------------------------------------- phase 2
+  Sim.prototype.forcesAccretion = function () {
+    const n = this.n, eps2 = this.eps * this.eps;
+    const X = this.x, Y = this.y, M = this.m, AX = this.ax, AY = this.ay;
+    for (let i = 0; i < n; i++) { AX[i] = 0; AY[i] = 0; }
+    for (let i = 0; i < n; i++) {
+      const xi = X[i], yi = Y[i], mi = M[i];
+      for (let j = i + 1; j < n; j++) {
+        const dx = X[j] - xi, dy = Y[j] - yi, r2 = dx * dx + dy * dy + eps2;
+        const inv = 1 / (r2 * Math.sqrt(r2));
+        AX[i] += dx * inv * M[j]; AY[i] += dy * inv * M[j];
+        AX[j] -= dx * inv * mi; AY[j] -= dy * inv * mi;
+      }
+    }
+    for (let i = 1; i < n; i++) for (let j = i + 1; j < n; j++) contact(this, i, j);
+  };
+
+  Sim.prototype.mergeInto = function (a, b) {        // b is absorbed into a
+    const ma = this.m[a], mb = this.m[b], m = ma + mb;
+    if (a !== 0) {
+      this.x[a] = (ma * this.x[a] + mb * this.x[b]) / m; this.y[a] = (ma * this.y[a] + mb * this.y[b]) / m;
+    }
+    this.vx[a] = (ma * this.vx[a] + mb * this.vx[b]) / m; this.vy[a] = (ma * this.vy[a] + mb * this.vy[b]) / m;
+    this.ftar[a] = (ma * this.ftar[a] + mb * this.ftar[b]) / m;
+    this.u[a] = (ma * this.u[a] + mb * this.u[b]) / m;
+    this.m[a] = m;
+    if (a !== 0) { this.r[a] = this.r0 * Math.sqrt(m / this.m0); this.kind[a] = MOONLET; }
+    this.remove(b);
+  };
+
+  Sim.prototype.accretionEvents = function () {
+    const P = 0, Rp = this.r[P], roche = this.planet.roche;
+    // 1) debris hitting the planet, or flying far away
+    for (let i = this.n - 1; i >= 1; i--) {
+      const d = Math.hypot(this.x[i] - this.x[P], this.y[i] - this.y[P]);
+      if (d < Rp + 0.5 * this.r[i]) this.mergeInto(P, i);
+      else if (d > 200) this.remove(i);
+    }
+    // 2) gravitationally bound pairs beyond the Roche limit stick together
+    const Mp = this.m[P];
+    for (let i = 1; i < this.n; i++) {
+      for (let j = i + 1; j < this.n; j++) {
+        const dx = this.x[j] - this.x[i], dy = this.y[j] - this.y[i], d = Math.hypot(dx, dy);
+        const mi = this.m[i], mj = this.m[j];
+        const mx = (mi * this.x[i] + mj * this.x[j]) / (mi + mj) - this.x[P], my = (mi * this.y[i] + mj * this.y[j]) / (mi + mj) - this.y[P];
+        const a = Math.hypot(mx, my);
+        if (a < roche) continue;
+        const rH = a * Math.cbrt((mi + mj) / (3 * Mp));
+        const touch = this.r[i] + this.r[j];
+        if (d > Math.max(1.05 * touch, this.o.hill * rH)) continue;
+        // merge if the pair is slow enough to be captured: relative speed below
+        // their mutual escape speed (bodies touching) or a few times the Hill
+        // speed (bodies inside each other's Hill sphere, i.e. a gravitationally
+        // collapsing clump)
+        const dv = Math.hypot(this.vx[j] - this.vx[i], this.vy[j] - this.vy[i]);
+        const vEsc = Math.sqrt(2 * (mi + mj) / Math.max(d, touch));
+        const vHill = 6 * rH * Math.sqrt(Mp / (a * a * a));
+        if (dv < Math.max(vEsc, vHill)) {
+          if (mi >= mj) this.mergeInto(i, j); else { this.mergeInto(j, i); }
+          j = i; // restart inner scan for i (array changed)
+          if (i >= this.n) break;
+        }
+      }
+    }
+  };
+
+  // The real disk is a dense, partly vaporised melt: collisions and gas
+  // pressure damp eccentric orbits (circularisation, angular momentum kept),
+  // and material inside the Roche limit, where tides stop it from clumping,
+  // spreads viscously and drains onto the planet. Modelled with two timescales.
+  Sim.prototype.diskDamping = function (dt) {
+    const P = 0, tc = this.o.tCirc, tv = this.o.tVisc, roche = this.planet.roche;
+    for (let i = 1; i < this.n; i++) {
+      const dx = this.x[i] - this.x[P], dy = this.y[i] - this.y[P];
+      const r = Math.hypot(dx, dy), ex = dx / r, ey = dy / r;
+      let vx = this.vx[i] - this.vx[P], vy = this.vy[i] - this.vy[P];
+      let vr = vx * ex + vy * ey, vt = -vx * ey + vy * ex;
+      vr *= 1 - dt / tc;                                   // circularise
+      if (r < roche) vt *= 1 - dt / tv;                    // inner disk drains inward
+      this.vx[i] = this.vx[P] + vr * ex - vt * ey;
+      this.vy[i] = this.vy[P] + vr * ey + vt * ex;
+    }
+  };
+
+  Sim.prototype.stepAccretion = function (dt) {
+    this._dt = dt;
+    if (!this._haveAcc) { this.forcesAccretion(); this._haveAcc = true; }
+    const n = this.n;
+    for (let i = 0; i < n; i++) {
+      this.vx[i] += 0.5 * dt * this.ax[i]; this.vy[i] += 0.5 * dt * this.ay[i];
+      this.x[i] += dt * this.vx[i]; this.y[i] += dt * this.vy[i];
+    }
+    this.forcesAccretion();
+    for (let i = 0; i < n; i++) { this.vx[i] += 0.5 * dt * this.ax[i]; this.vy[i] += 0.5 * dt * this.ay[i]; }
+    this.diskDamping(dt);
+    this.t += dt;
+    const before = this.n;
+    this.accretionEvents();
+    if (this.n !== before) this._haveAcc = false;
+  };
+
+  // ---------------------------------------------------------------- driver
+  Sim.prototype.step = function () {
+    if (this.phase === 1) {
+      this.stepImpact(this.o.dt);
+      for (let i = this.n - 1; i >= 0; i--) if (Math.abs(this.x[i]) > 80 || Math.abs(this.y[i]) > 80) { this.remove(i); this._haveAcc = false; }
+      if (this.t >= this.o.tSwitch) this.toAccretion();
+    } else if (this.phase === 2) {
+      this.stepAccretion(this.o.dt2);
+    }
+  };
+
+  // ---------------------------------------------------------------- stats
+  Sim.prototype.hours = function () { return this.t * T_UNIT_S / 3600; };
+  Sim.prototype.diskMass = function () { let s = 0; for (let i = 1; i < this.n; i++) s += this.m[i]; return this.phase === 2 ? s : NaN; };
+  Sim.prototype.largestMoon = function () {
+    if (this.phase !== 2) return null;
+    let k = -1, mm = 0;
+    for (let i = 1; i < this.n; i++) if (this.m[i] > mm) { mm = this.m[i]; k = i; }
+    if (k < 0) return null;
+    const dx = this.x[k] - this.x[0], dy = this.y[k] - this.y[0];
+    return { i: k, m: mm, lunar: mm / M_LUNAR, dist: Math.hypot(dx, dy) / this.r[0], ftar: this.ftar[k] };
+  };
+
+  Sim.consts = { T_UNIT_S, V_UNIT_KMS, M_LUNAR, TGT_MANTLE, TGT_CORE, IMP_MANTLE, IMP_CORE, MOONLET };
+  root.MoonSim = Sim;
+  if (typeof module !== 'undefined') module.exports = Sim;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+(function () {
+  'use strict';
+  const C = MoonSim.consts;
+  const $ = id => document.getElementById(id);
+  const canvas = $('view'), ctx = canvas.getContext('2d');
+  const PRESETS = {
+    canup: { gamma: 0.45, b: 0.55, vr: 1.10 },
+    canonical: { gamma: 0.11, b: 0.70, vr: 1.00 },
+  };
+  const SPEED_MS = [0, 2, 5, 10, 18, 32];        // compute budget per frame
+  const SPEED_LBL = ['', 'slow', 'gentle', 'normal', 'fast', 'max'];
+  const PHASE2_LEN = 3200;                       // time units of accretion (~30 days)
+
+  let sim = null, paused = false, colorMode = 'origin', done = false;
+  let cam = { x: 0, y: 0, half: 4, zoom: 1, panX: 0, panY: 0 };
+  let trail = [], trailId = -1, trailT = 0;
+  let stars = null, speckle = null;
+  // the merged planet's surface: a mottle of proto-Earth and impactor rock in the
+  // proportion found in its mantle
+  function makeSpeckle(ft) {
+    const pts = [];
+    for (let k = 0; k < 420; k++) {
+      const a = Math.random() * 6.2832, r = Math.sqrt(Math.random());
+      pts.push({ x: r * Math.cos(a), y: r * Math.sin(a), s: 0.05 + 0.07 * Math.random(), r: Math.random(), c: Math.random() < ft ? '#5aa9e6' : '#f08a4b' });
+    }
+    return pts;
+  }
+
+  // ------------------------------------------------------------ controls
+  function setSliders(p) {
+    $('gamma').value = p.gamma; $('b').value = p.b; $('vr').value = p.vr; syncOut();
+  }
+  function syncOut() {
+    $('gammaOut').textContent = (+$('gamma').value).toFixed(2);
+    $('bOut').textContent = (+$('b').value).toFixed(2);
+    $('vrOut').textContent = (+$('vr').value).toFixed(2);
+    $('speedOut').textContent = SPEED_LBL[+$('speed').value];
+  }
+  $('preset').addEventListener('change', e => { if (PRESETS[e.target.value]) { setSliders(PRESETS[e.target.value]); start(); } });
+  for (const id of ['gamma', 'b', 'vr']) $(id).addEventListener('input', () => { $('preset').value = 'custom'; syncOut(); });
+  $('speed').addEventListener('input', syncOut);
+  $('run').addEventListener('click', start);
+  $('pause').addEventListener('click', () => { paused = !paused; $('pause').textContent = paused ? 'Resume' : 'Pause'; });
+  $('cOrigin').addEventListener('click', () => setColor('origin'));
+  $('cTemp').addEventListener('click', () => setColor('temp'));
+  function setColor(m) {
+    colorMode = m;
+    $('cOrigin').setAttribute('aria-pressed', m === 'origin');
+    $('cTemp').setAttribute('aria-pressed', m === 'temp');
+    buildLegend();
+  }
+  function buildLegend() {
+    const L = $('legend');
+    if (colorMode === 'origin') {
+      L.innerHTML = '<span><i style="background:#5aa9e6"></i>proto-Earth rock</span><span><i style="background:#1f4e8c"></i>proto-Earth iron</span>' +
+        '<span><i style="background:#f08a4b"></i>impactor rock</span><span><i style="background:#8a3b12"></i>impactor iron</span>';
+    } else {
+      L.innerHTML = '<span>2,000 K</span><span class="colorbar"></span><span>&gt; 6,440 K</span>';
+    }
+  }
+
+  // camera: drag to pan, wheel to zoom, double-click to reset
+  let drag = null;
+  canvas.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY, px: cam.panX, py: cam.panY }; canvas.setPointerCapture(e.pointerId); canvas.style.cursor = 'grabbing'; });
+  canvas.addEventListener('pointermove', e => {
+    if (!drag) return;
+    const s = scale();
+    cam.panX = drag.px - (e.clientX - drag.x) / s; cam.panY = drag.py + (e.clientY - drag.y) / s;
+  });
+  canvas.addEventListener('pointerup', () => { drag = null; canvas.style.cursor = 'grab'; });
+  canvas.addEventListener('wheel', e => { e.preventDefault(); cam.zoom *= Math.exp(-e.deltaY * 0.0015); cam.zoom = Math.min(20, Math.max(0.1, cam.zoom)); }, { passive: false });
+  canvas.addEventListener('dblclick', () => { cam.zoom = 1; cam.panX = cam.panY = 0; });
+
+  // ------------------------------------------------------------ run
+  function start() {
+    $('overlay').hidden = false;
+    done = false; paused = false; $('pause').textContent = 'Pause';
+    trail = []; trailId = -1; speckle = null;
+    cam.zoom = 1; cam.panX = cam.panY = 0; cam.half = 3.2;
+    sim = null;
+    setTimeout(() => {   // let the overlay paint before the blocking set-up
+      sim = new MoonSim({ N: +$('res').value, gamma: +$('gamma').value, b: +$('b').value, vratio: +$('vr').value, seed: (Math.random() * 1e9) | 0 });
+      $('overlay').hidden = true;
+    }, 30);
+  }
+
+  function advance() {
+    if (!sim || paused || done) return;
+    const budget = SPEED_MS[+$('speed').value];
+    const t0 = performance.now();
+    let k = 0;
+    do {
+      const ph = sim.phase;
+      sim.step(); k++;
+      if (sim.phase === 2 && sim.t - trailT >= 1) {        // sample the Moon's path in sim time
+        trailT = sim.t;
+        const m = sim.largestMoon();
+        if (m) { trail.push([sim.x[m.i] - sim.x[0], sim.y[m.i] - sim.y[0]]); if (trail.length > 140) trail.shift(); }
+      }
+      if (ph === 1 && sim.phase === 2) { trail = []; break; }   // re-frame on transition
+      if (sim.phase === 2 && sim.t > sim.o.tSwitch + PHASE2_LEN) { done = true; break; }
+    } while (performance.now() - t0 < budget);
+  }
+
+  // ------------------------------------------------------------ drawing
+  function resize() {
+    const r = canvas.getBoundingClientRect(), d = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, Math.round(r.width * d)); canvas.height = Math.max(1, Math.round(r.height * d));
+    stars = makeStars(canvas.width, canvas.height);
+  }
+  window.addEventListener('resize', resize);
+  function makeStars(w, h) {
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const g = c.getContext('2d'); g.fillStyle = '#070912'; g.fillRect(0, 0, w, h);
+    let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    for (let i = 0; i < w * h / 2500; i++) {
+      const a = 0.15 + 0.6 * rnd() * rnd();
+      g.fillStyle = `rgba(220,228,255,${a})`;
+      const s = rnd() < 0.05 ? 1.6 : 0.9;
+      g.fillRect(rnd() * w, rnd() * h, s, s);
+    }
+    return c;
+  }
+  const scale = () => Math.min(canvas.width, canvas.height) / (2 * cam.half * cam.zoom);
+  function toScreen(x, y) {
+    const s = scale();
+    return [canvas.width / 2 + (x - cam.x - cam.panX) * s, canvas.height / 2 - (y - cam.y - cam.panY) * s];
+  }
+
+  const ORIGIN = ['#5aa9e6', '#1f4e8c', '#f08a4b', '#8a3b12'];
+  const TSTOPS = [[2000, [27, 42, 107]], [3000, [47, 143, 214]], [4000, [63, 208, 160]], [5000, [245, 225, 90]], [5800, [255, 138, 42]], [6440, [232, 32, 42]]];
+  function tempColor(u) {
+    const T = 2000 + u * 62600;   // specific energy -> rough temperature (c_v ≈ 1 kJ/kg/K)
+    if (T <= TSTOPS[0][0]) return rgb(TSTOPS[0][1]);
+    for (let k = 1; k < TSTOPS.length; k++) if (T < TSTOPS[k][0]) {
+      const [t0, c0] = TSTOPS[k - 1], [t1, c1] = TSTOPS[k], f = (T - t0) / (t1 - t0);
+      return rgb(c0.map((v, i) => v + f * (c1[i] - v)));
+    }
+    return rgb(TSTOPS[TSTOPS.length - 1][1]);
+  }
+  const rgb = c => `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`;
+  function mixColor(ft, dark) {    // blend impactor -> proto-Earth by target fraction
+    const a = dark ? [138, 59, 18] : [240, 138, 75], b = dark ? [31, 78, 140] : [90, 169, 230];
+    return a.map((v, i) => v + ft * (b[i] - v));
+  }
+
+  function updateCamera() {
+    if (!sim) return;
+    let tx = 0, ty = 0, half;
+    if (sim.phase === 1) {
+      // frame the bulk of the material (90th percentile radius)
+      let M = 0, X = 0, Y = 0;
+      for (let i = 0; i < sim.n; i++) { M += sim.m[i]; X += sim.m[i] * sim.x[i]; Y += sim.m[i] * sim.y[i]; }
+      tx = X / M; ty = Y / M;
+      const rs = [];
+      for (let i = 0; i < sim.n; i += 3) rs.push(Math.hypot(sim.x[i] - tx, sim.y[i] - ty));
+      rs.sort((a, b) => a - b);
+      half = Math.min(6, Math.max(3.2, rs[Math.floor(rs.length * 0.9)] * 1.4));
+    } else {
+      tx = sim.x[0]; ty = sim.y[0];
+      const m = sim.largestMoon();
+      half = Math.max(sim.planet.roche * 1.5, m ? Math.min(30, m.dist * sim.r[0] * 1.35) : 0, 5);
+    }
+    cam.x += (tx - cam.x) * 0.15; cam.y += (ty - cam.y) * 0.15;
+    cam.half += (half - cam.half) * 0.04;
+  }
+
+  function draw() {
+    ctx.drawImage(stars, 0, 0);
+    if (!sim) return;
+    const s = scale(), d = window.devicePixelRatio || 1;
+    if (sim.phase === 1) {
+      const pr = Math.max(1.2 * d, sim.r0 * s * 1.15);
+      for (let i = 0; i < sim.n; i++) {
+        const [px, py] = toScreen(sim.x[i], sim.y[i]);
+        if (px < -5 || py < -5 || px > canvas.width + 5 || py > canvas.height + 5) continue;
+        ctx.fillStyle = colorMode === 'origin' ? ORIGIN[sim.kind[i]] : tempColor(sim.u[i]);
+        ctx.beginPath(); ctx.arc(px, py, pr, 0, 6.2832); ctx.fill();
+      }
+    } else {
+      // Roche limit
+      const [cx, cy] = toScreen(sim.x[0], sim.y[0]);
+      ctx.setLineDash([5 * d, 6 * d]); ctx.strokeStyle = 'rgba(243,210,122,.45)'; ctx.lineWidth = 1 * d;
+      ctx.beginPath(); ctx.arc(cx, cy, sim.planet.roche * s, 0, 6.2832); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(243,210,122,.7)'; ctx.font = `${11 * d}px "IBM Plex Mono", monospace`;
+      ctx.fillText('Roche limit', cx + sim.planet.roche * s * 0.72, cy - sim.planet.roche * s * 0.72);
+      // planet
+      const R = sim.r[0] * s;
+      if (!speckle) speckle = makeSpeckle(sim.planet.mantleFt);
+      ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, R, 0, 6.2832); ctx.clip();
+      ctx.fillStyle = colorMode === 'origin' ? '#3d6f99' : rgb([200, 70, 40]); ctx.fillRect(cx - R, cy - R, 2 * R, 2 * R);
+      for (const p of speckle) {
+        ctx.fillStyle = colorMode === 'origin' ? p.c : tempColor(0.03 + p.r * 0.03);
+        ctx.beginPath(); ctx.arc(cx + p.x * R, cy + p.y * R, p.s * R, 0, 6.2832); ctx.fill();
+      }
+      const g = ctx.createRadialGradient(cx - R * 0.35, cy - R * 0.35, R * 0.05, cx, cy, R);
+      g.addColorStop(0, 'rgba(255,255,255,.18)'); g.addColorStop(0.6, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.55)');
+      ctx.fillStyle = g; ctx.fillRect(cx - R, cy - R, 2 * R, 2 * R);
+      ctx.restore();
+      // moon trail
+      const m = sim.largestMoon();
+      if (m) {
+        ctx.strokeStyle = 'rgba(230,233,242,.18)'; ctx.lineWidth = 1 * d; ctx.beginPath();
+        trail.forEach(([x, y], k) => { const [px, py] = toScreen(sim.x[0] + x, sim.y[0] + y); k ? ctx.lineTo(px, py) : ctx.moveTo(px, py); });
+        ctx.stroke();
+      }
+      // debris and moonlets
+      for (let i = 1; i < sim.n; i++) {
+        const [px, py] = toScreen(sim.x[i], sim.y[i]);
+        const rr = Math.max(1.3 * d, sim.r[i] * s);
+        let col;
+        if (colorMode === 'temp') col = tempColor(sim.u[i]);
+        else if (sim.kind[i] === C.MOONLET) col = rgb(mixColor(sim.ftar[i], false).map(v => v * 0.6 + 200 * 0.4));
+        else col = ORIGIN[sim.kind[i]];
+        ctx.fillStyle = col; ctx.beginPath(); ctx.arc(px, py, rr, 0, 6.2832); ctx.fill();
+      }
+      if (m && m.lunar > 0.15) {
+        const [px, py] = toScreen(sim.x[m.i], sim.y[m.i]);
+        const rr = Math.max(1.3 * d, sim.r[m.i] * s);
+        ctx.strokeStyle = 'rgba(243,210,122,.9)'; ctx.lineWidth = 1.2 * d;
+        ctx.beginPath(); ctx.arc(px, py, rr + 4 * d, 0, 6.2832); ctx.stroke();
+        ctx.fillStyle = '#f3d27a'; ctx.font = `600 ${12 * d}px "IBM Plex Sans", sans-serif`;
+        ctx.fillText(done || isFormed(m) ? 'Moon' : 'proto-Moon', px + rr + 7 * d, py - rr - 4 * d);
+      }
+    }
+  }
+
+  function isFormed(m) { return m && m.m > 0.6 * sim.diskMass(); }
+
+  // ------------------------------------------------------------ text
+  function stage() {
+    if (!sim) return ['Setting up', ''];
+    const h = sim.hours();
+    if (sim.phase === 1) {
+      if (h < 0) return ['Approach', 'The impactor closes in on the young Earth at roughly escape speed.'];
+      if (h < 2.5) return ['Impact', 'An oblique hit. Shock waves heat the rock past 6,000 K and the bodies smear into each other.'];
+      if (h < 8) return ['Hit, separate, re-collide', 'The two bodies partly bounce apart, then fall back together, as in the paper\'s Fig. 1.'];
+      return ['A spinning merged planet', 'The iron cores sink to the centre. Spiral arms wrap up and throw debris into orbit.'];
+    }
+    const m = sim.largestMoon();
+    if (done) return ['The Moon has formed', 'Most of the inner disk fell back onto Earth. The outer debris gathered into one body.'];
+    if (isFormed(m)) return ['A Moon, sweeping up the rest', 'One body now holds most of the debris left in orbit.'];
+    return ['Debris disk', 'Inside the Roche limit tides keep debris apart and it drains onto Earth. Outside it, clumps stick together into moonlets.'];
+  }
+
+  function fmtTime() {
+    const h = sim.hours();
+    if (h < 0) return `T − ${(-h * 60).toFixed(0)} min`;
+    if (h < 48) return `T + ${h.toFixed(1)} h`;
+    return `T + ${(h / 24).toFixed(1)} days`;
+  }
+
+  function updateText() {
+    if (!sim) return;
+    $('clock').textContent = fmtTime();
+    const [a, b] = stage(); $('stagename').textContent = a; $('stagedesc').textContent = b;
+    $('rN').textContent = sim.n.toLocaleString();
+    if (sim.phase === 2) {
+      $('rPlanet').textContent = sim.m[0].toFixed(3) + ' M⊕';
+      $('rDisk').textContent = (sim.diskMass() / C.M_LUNAR).toFixed(2) + ' M☾';
+      $('rEsc').textContent = sim.diskInfo.escaped + ' particles';
+      const m = sim.largestMoon();
+      if (m) {
+        $('moonMass').textContent = m.lunar.toFixed(2) + ' M☾';
+        $('moonWhere').textContent = `orbiting at ${m.dist.toFixed(1)} planet radii` + (done ? ', finished' : '');
+        
+      } else { $('moonMass').textContent = 'no moon'; $('moonWhere').textContent = 'all debris fell back or escaped'; }
+    } else {
+      $('rPlanet').textContent = '—'; $('rDisk').textContent = 'after day 1'; $('rEsc').textContent = '—';
+      $('moonMass').textContent = '—'; $('moonWhere').textContent = 'forms after the impact phase';
+    }
+  }
+
+  let frame = 0;
+  function loop() {
+    advance();
+    updateCamera();
+    draw();
+    if ((frame++ & 3) === 0) updateText();
+    requestAnimationFrame(loop);
+  }
+
+  setSliders(PRESETS.canup); buildLegend(); resize();
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) $('speed').value = 3;
+  syncOut();
+  start();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
